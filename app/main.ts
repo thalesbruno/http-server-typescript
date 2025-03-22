@@ -1,7 +1,24 @@
+import type { BunFile } from "bun";
 import * as net from "net";
+import { parseArgs } from "util";
 
 const CRLF = "\r\n";
 const DOUBLE_CRLF = "\r\n\r\n";
+
+const StatusLineReason = {
+  200: "OK",
+  404: "Not Found",
+  400: "Bad Request",
+} as const;
+type StatusCode = keyof typeof StatusLineReason;
+
+const ContentTypes = {
+  text: "text/plain",
+  html: "text/html",
+  json: "application/json",
+  octet: "application/octet-stream",
+};
+type ContentType = keyof typeof ContentTypes;
 
 const parseRequest = (httpRequest: string) => {
   const [requestLineAndHeaders, ...body] = httpRequest.split(DOUBLE_CRLF);
@@ -19,43 +36,84 @@ const parseRequest = (httpRequest: string) => {
   return { requestLine, headers, getHeader, body };
 };
 
-const StatusLineReason = {
-  200: "OK",
-  404: "Not Found",
-  400: "Bad Request",
-} as const;
-type StatusCode = keyof typeof StatusLineReason;
+const buildResponse = async (
+  statusCode: StatusCode,
+  type: ContentType = "text",
+  body: string | BunFile = "",
+): Promise<string> => {
+  if (statusCode === 404) {
+    return "HTTP/1.1 404 Not Found\r\n\r\n";
+  }
+  if (statusCode === 400) {
+    return "HTTP/1.1 400 Bad Request\r\n\r\n";
+  }
 
-const buildResponse = (statusCode: StatusCode, body: string): string => {
   const statusLine = `HTTP/1.1 ${statusCode} ${StatusLineReason[statusCode]}`;
+  const headersMap = new Map<string, string>();
 
-  const headers = new Map<string, string>();
-  headers.set("Content-Type", "text/plain");
-  headers.set("Content-Length", body.length.toString());
-  const headersString = Array.from(headers.entries())
+  headersMap.set("Content-Type", ContentTypes[type]);
+
+  const bodyLength = typeof body === "string" ? body.length : body.size;
+  headersMap.set("Content-Length", bodyLength.toString());
+
+  const bodyResponse = typeof body === "string" ? body : await body.text();
+
+  const headers = Array.from(headersMap.entries())
     .map(([key, value]) => `${key}: ${value}`)
     .join(CRLF);
 
-  return `${statusLine}${CRLF}${headersString}${DOUBLE_CRLF}${body}`;
+  return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyResponse}`;
+};
+
+const getDirectory = () => {
+  const { values } = parseArgs({
+    args: Bun.argv,
+    options: {
+      directory: {
+        type: "string",
+      },
+    },
+    strict: true,
+    allowPositionals: true,
+  });
+
+  return values["directory"];
 };
 
 const server = net.createServer((socket) => {
   socket.on("close", () => {
     socket.end();
   });
-  socket.on("data", (data) => {
+  socket.on("data", async (data) => {
     const {
       requestLine: { path },
       getHeader,
     } = parseRequest(data.toString());
 
+    if (path.startsWith("/files/")) {
+      const [_, fileName] = path.split("/files/");
+      const directory = getDirectory();
+
+      const file = Bun.file(`${directory}/${fileName}`);
+      const exists = await file.exists();
+      if (!exists) {
+        const response = await buildResponse(404);
+        socket.write(response);
+        return;
+      }
+
+      const response = await buildResponse(200, 'octet', file);
+      socket.write(response);
+      return;
+    }
+
     if (path === "/user-agent") {
       const userAgent = getHeader("User-Agent");
       if (!userAgent) {
-        const response = buildResponse(400, "Bad Request");
+        const response = await buildResponse(400);
         socket.write(response);
       } else {
-        const response = buildResponse(200, userAgent);
+        const response = await buildResponse(200, 'text', userAgent);
         socket.write(response);
       }
       return;
@@ -63,17 +121,17 @@ const server = net.createServer((socket) => {
 
     if (path.startsWith("/echo/")) {
       const [_, str] = path.split("/echo/");
-      const response = buildResponse(200, str);
+      const response = await buildResponse(200, 'text', str);
       socket.write(response);
       return;
     }
 
     if (path === "/") {
-      socket.write("HTTP/1.1 200 OK\r\n\r\n");
+      socket.write(await buildResponse(200));
       return;
     }
 
-    socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+    socket.write(await buildResponse(404));
     return;
   });
 });
