@@ -87,7 +87,6 @@ Bun.listen({
         );
 
         const response = await buildResponse(StatusCode.OK, str, {
-          contentType: ContentType.octet,
           encoding,
         });
         socket.write(response);
