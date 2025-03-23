@@ -7,8 +7,9 @@ const DOUBLE_CRLF = "\r\n\r\n";
 
 const StatusLineReason = {
   200: "OK",
-  404: "Not Found",
+  201: "Created",
   400: "Bad Request",
+  404: "Not Found",
 } as const;
 type StatusCode = keyof typeof StatusLineReason;
 
@@ -17,7 +18,7 @@ const ContentTypes = {
   html: "text/html",
   json: "application/json",
   octet: "application/octet-stream",
-};
+} as const;
 type ContentType = keyof typeof ContentTypes;
 
 const parseRequest = (httpRequest: string) => {
@@ -42,10 +43,13 @@ const buildResponse = async (
   body: string | BunFile = "",
 ): Promise<string> => {
   if (statusCode === 404) {
-    return "HTTP/1.1 404 Not Found\r\n\r\n";
+    return `HTTP/1.1 404 Not Found${DOUBLE_CRLF}`;
   }
   if (statusCode === 400) {
-    return "HTTP/1.1 400 Bad Request\r\n\r\n";
+    return `HTTP/1.1 400 Bad Request${DOUBLE_CRLF}`;
+  }
+  if (statusCode === 201) {
+    return `HTTP/1.1 201 Created${DOUBLE_CRLF}`;
   }
 
   const statusLine = `HTTP/1.1 ${statusCode} ${StatusLineReason[statusCode]}`;
@@ -86,25 +90,36 @@ const server = net.createServer((socket) => {
   });
   socket.on("data", async (data) => {
     const {
-      requestLine: { path },
+      requestLine: { method, path },
       getHeader,
+      body
     } = parseRequest(data.toString());
 
     if (path.startsWith("/files/")) {
       const [_, fileName] = path.split("/files/");
       const directory = getDirectory();
 
-      const file = Bun.file(`${directory}/${fileName}`);
-      const exists = await file.exists();
-      if (!exists) {
-        const response = await buildResponse(404);
+      if (method === 'GET') {
+        const file = Bun.file(`${directory}/${fileName}`);
+        const exists = await file.exists();
+        if (!exists) {
+          const response = await buildResponse(404);
+          socket.write(response);
+          return;
+        }
+
+        const response = await buildResponse(200, 'octet', file);
         socket.write(response);
         return;
       }
 
-      const response = await buildResponse(200, 'octet', file);
-      socket.write(response);
-      return;
+      if (method === 'POST') {
+        const fileReference = Bun.file(`${directory}/${fileName}`);
+        await Bun.write(fileReference, body);
+        const response = await buildResponse(201);
+        socket.write(response);
+        return;
+      }
     }
 
     if (path === "/user-agent") {
