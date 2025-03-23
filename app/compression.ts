@@ -1,1 +1,9 @@
-export const SUPPORTED_ENCODINGS = ['gzip'];
+import { $ } from "bun";
+export const SUPPORTED_ENCODINGS = ["gzip"];
+
+export const compress = async (text: string) => {
+  const { stdout } = await $`echo ${text} | gzip`.quiet();
+  const size = stdout.byteLength;
+
+  return { compressed: stdout, size };
+};

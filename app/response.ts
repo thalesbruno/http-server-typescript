@@ -6,6 +6,7 @@ import {
   type StatusCodeType,
 } from "./types";
 import { CRLF, DOUBLE_CRLF } from "./constants";
+import { compress } from "./compression";
 
 export const buildResponse = async (
   statusCode: StatusCodeType,
@@ -25,7 +26,7 @@ export const buildResponse = async (
   const statusLine = `HTTP/1.1 ${statusCode} ${StatusCodeReason[statusCode]}`;
   const headersMap = new Map<string, string>();
 
-  headersMap.set("Content-Type", options?.contentType ?? 'text/plain');
+  headersMap.set("Content-Type", options?.contentType ?? "text/plain");
 
   const bodyLength = typeof body === "string" ? body.length : body.size;
   headersMap.set("Content-Length", bodyLength.toString());
@@ -36,9 +37,18 @@ export const buildResponse = async (
 
   const bodyResponse = typeof body === "string" ? body : await body.text();
 
+  let bodyCompressed: Buffer | undefined;
+  if (options?.encoding) {
+    const { compressed, size } = await compress(bodyResponse);
+    bodyCompressed = compressed;
+    headersMap.set("Content-Length", size.toString());
+  }
+
   const headers = Array.from(headersMap.entries())
     .map(([key, value]) => `${key}: ${value}`)
     .join(CRLF);
 
-  return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyResponse}`;
+  const bodyContent = bodyCompressed ?? bodyResponse;
+
+  return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyContent}`;
 };
