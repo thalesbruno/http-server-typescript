@@ -1,1 +1,1 @@
-export const SUPPORTED_ENCODINGS = ['gzip'] as const;
+export const SUPPORTED_ENCODINGS = ['gzip'];

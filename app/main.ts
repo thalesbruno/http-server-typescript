@@ -82,9 +82,8 @@ Bun.listen({
 
         const { getHeader } = parseRequest(data.toString());
         const encodingHeader = getHeader("Accept-Encoding");
-        const encoding = SUPPORTED_ENCODINGS.find(
-          (encoding) => encoding === encodingHeader,
-        );
+        const encodings = encodingHeader?.split(", ") ?? [];
+        const encoding = encodings.find((encoding) => SUPPORTED_ENCODINGS.includes(encoding));
 
         const response = await buildResponse(StatusCode.OK, str, {
           encoding,
