@@ -48,7 +48,7 @@ export const buildResponse = async (
     .map(([key, value]) => `${key}: ${value}`)
     .join(CRLF);
 
-  const bodyContent = bodyCompressed ?? bodyResponse;
+  const bodyContent = bodyCompressed?.toString() ?? bodyResponse;
 
   return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyContent}`;
 };
