@@ -2,16 +2,15 @@ import type { BunFile } from "bun";
 import {
   StatusCode,
   StatusCodeReason,
-  type ContentTypeType,
+  type ResponseOptions,
   type StatusCodeType,
 } from "./types";
 import { CRLF, DOUBLE_CRLF } from "./constants";
 
 export const buildResponse = async (
   statusCode: StatusCodeType,
-  type: ContentTypeType = "text/plain",
   body: string | BunFile = "",
-  encoding?: string,
+  options?: ResponseOptions,
 ): Promise<string> => {
   if (statusCode === StatusCode.NOT_FOUND) {
     return `HTTP/1.1 404 Not Found${DOUBLE_CRLF}`;
@@ -26,13 +25,13 @@ export const buildResponse = async (
   const statusLine = `HTTP/1.1 ${statusCode} ${StatusCodeReason[statusCode]}`;
   const headersMap = new Map<string, string>();
 
-  headersMap.set("Content-Type", type);
+  headersMap.set("Content-Type", options?.contentType ?? 'text/plain');
 
   const bodyLength = typeof body === "string" ? body.length : body.size;
   headersMap.set("Content-Length", bodyLength.toString());
 
-  if (encoding) {
-    headersMap.set("Content-Encoding", encoding);
+  if (options?.encoding) {
+    headersMap.set("Content-Encoding", options.encoding);
   }
 
   const bodyResponse = typeof body === "string" ? body : await body.text();

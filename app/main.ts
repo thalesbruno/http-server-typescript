@@ -48,8 +48,9 @@ Bun.listen({
 
           const response = await buildResponse(
             StatusCode.OK,
-            "application/octet-stream",
-            file,
+            file, {
+              contentType: ContentType.octet
+            }
           );
           socket.write(response);
           return;
@@ -70,11 +71,7 @@ Bun.listen({
           const response = await buildResponse(StatusCode.BAD_REQUEST);
           socket.write(response);
         } else {
-          const response = await buildResponse(
-            StatusCode.OK,
-            "application/octet-stream",
-            userAgent,
-          );
+          const response = await buildResponse(StatusCode.OK, userAgent);
           socket.write(response);
         }
         return;
@@ -85,14 +82,14 @@ Bun.listen({
 
         const { getHeader } = parseRequest(data.toString());
         const encodingHeader = getHeader("Accept-Encoding");
-        const encoding = SUPPORTED_ENCODINGS.find((encoding) => encoding === encodingHeader)
-
-        const response = await buildResponse(
-          StatusCode.OK,
-          ContentType.octet,
-          str,
-          encoding,
+        const encoding = SUPPORTED_ENCODINGS.find(
+          (encoding) => encoding === encodingHeader,
         );
+
+        const response = await buildResponse(StatusCode.OK, str, {
+          contentType: ContentType.octet,
+          encoding,
+        });
         socket.write(response);
         return;
       }
@@ -107,4 +104,3 @@ Bun.listen({
     },
   },
 });
-

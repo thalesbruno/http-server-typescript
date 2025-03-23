@@ -33,3 +33,8 @@ export const ContentType = {
   octet: "application/octet-stream",
 } as const;
 export type ContentTypeType = KeyOf<typeof ContentType>;
+
+export type ResponseOptions = {
+  contentType?: ContentTypeType,
+  encoding?: string,
+}
