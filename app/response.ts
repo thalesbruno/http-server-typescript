@@ -41,8 +41,7 @@ export const buildResponse = async (
   
   if (options?.encoding) {
     const { compressed, size } = await compress(bodyResponse);
-    const compressedData = new Uint8Array(await compressed.arrayBuffer());
-    finalBody = compressedData;
+    finalBody = new Uint8Array(await compressed.arrayBuffer());
     headersMap.set("Content-Length", size.toString());
   }
 
