@@ -48,14 +48,7 @@ export const buildResponse = async (
     .map(([key, value]) => `${key}: ${value}`)
     .join(CRLF);
 
-  if (bodyCompressed) {
-    const responseHeader = `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}`;
-    const responseBuffer = new TextEncoder().encode(responseHeader);
-    const finalResponse = new Uint8Array(responseBuffer.length + bodyCompressed.length);
-    finalResponse.set(responseBuffer, 0);
-    finalResponse.set(bodyCompressed, responseBuffer.length);
-    return Buffer.from(finalResponse).toString();
-  }
-  
-  return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyResponse}`;
+  const bodyContent = bodyCompressed?.toString() ?? bodyResponse;
+
+  return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyContent}`;
 };
