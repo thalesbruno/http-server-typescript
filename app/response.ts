@@ -12,7 +12,7 @@ export const buildResponse = async (
   statusCode: StatusCodeType,
   body: string | BunFile = "",
   options?: ResponseOptions,
-): Promise<string> => {
+): Promise<string | ArrayBuffer> => {
   if (statusCode === StatusCode.NOT_FOUND) {
     return `HTTP/1.1 404 Not Found${DOUBLE_CRLF}`;
   }
@@ -37,10 +37,12 @@ export const buildResponse = async (
 
   const bodyResponse = typeof body === "string" ? body : await body.text();
 
-  let bodyCompressed: Buffer | undefined;
+  let finalBody: string | Uint8Array = bodyResponse;
+  
   if (options?.encoding) {
     const { compressed, size } = await compress(bodyResponse);
-    bodyCompressed = compressed;
+    const compressedData = new Uint8Array(await compressed.arrayBuffer());
+    finalBody = compressedData;
     headersMap.set("Content-Length", size.toString());
   }
 
@@ -48,7 +50,15 @@ export const buildResponse = async (
     .map(([key, value]) => `${key}: ${value}`)
     .join(CRLF);
 
-  const bodyContent = bodyCompressed?.toString() ?? bodyResponse;
+  const responseHeader = `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}`;
+  
+  if (finalBody instanceof Uint8Array) {
+    const headerBuffer = new TextEncoder().encode(responseHeader);
+    const combinedBuffer = new Uint8Array(headerBuffer.length + finalBody.length);
+    combinedBuffer.set(headerBuffer);
+    combinedBuffer.set(finalBody, headerBuffer.length);
+    return combinedBuffer.buffer;
+  }
 
-  return `${statusLine}${CRLF}${headers}${DOUBLE_CRLF}${bodyContent}`;
+  return `${responseHeader}${finalBody}`;
 };
